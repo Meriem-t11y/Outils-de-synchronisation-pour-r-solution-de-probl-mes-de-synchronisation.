@@ -10,7 +10,7 @@ database_access = threading.Semaphore(1)    # accès exclusif à la BDD
 
 readcount = 0  # compteur des lecteurs
 
-def lecteur():
+def lecteur(cas):
     global readcount
     read_try.acquire()  #p(read_try)
     mutex.acquire()    #p(mutex)
@@ -19,7 +19,9 @@ def lecteur():
         database_access.acquire() #p(database_access)
     mutex.release() #v(mutex)
     read_try.release() #v(release)
-    value = lecture(connection)
+
+    value = lecture(connection, cas, readcount)
+
     mutex.acquire() #p(mutex)
     readcount -= 1
     if readcount == 0:
@@ -28,9 +30,13 @@ def lecteur():
 
     return value
 
-def redacteur(num):
+def redacteur(num, cas):
     read_try.acquire()         # p(read_try)
     database_access.acquire()  # p(databse_access) pour acces exclusif
-    ecriture(connection, num)
+
+    info = ecriture(connection, num, cas)
+
     database_access.release()  #v(database)
     read_try.release()  #v(read_try)
+
+    return info

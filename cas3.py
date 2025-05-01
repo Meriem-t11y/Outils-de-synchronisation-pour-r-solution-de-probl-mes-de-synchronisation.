@@ -1,5 +1,6 @@
 import threading
-from datetime import datetime
+from ecriture_lecture import lecture,ecriture
+
 
 # Sémaphores
 mutex = threading.Semaphore(1)              # protège readcount
@@ -7,18 +8,6 @@ read_try = threading.Semaphore(1)           # priorité rédacteurs
 database_access = threading.Semaphore(1)    # accès exclusif à la BDD
 
 readcount = 0  # compteur des lecteurs
-
-
-def lecture(reader_id):
-    print(f"Lecteur {reader_id} est entrain de lire  " + datetime.now())
-    #lecture mel database
-    print(f"Lecteur {reader_id} a fini de lire."+ datetime.now())
-
-def ecriture(writer_id):
-    print(f"Redacteur {writer_id} est entrain d'ecrire "+datetime.now())
-    #ecriture mel database
-    print(f"Redacteur {writer_id} a fini d'écrire "+datetime.now())
-
 
 def lecteur(reader_id):
     global readcount

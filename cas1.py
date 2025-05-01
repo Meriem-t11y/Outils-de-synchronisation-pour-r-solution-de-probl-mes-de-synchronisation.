@@ -9,7 +9,7 @@ mutex2 = threading.Semaphore(1)       # protège des redacteurs
 
 nb_lecteurs = 0
 
-def lecteur():
+def lecteur(cas):
     mutex2.acquire()
     mutex.acquire()
     global nb_lecteurs
@@ -19,7 +19,7 @@ def lecteur():
     mutex.release()
     mutex2.release()
 
-    value=lecture(connection)
+    info=lecture(connection, cas, nb_lecteurs)
 
     mutex.acquire()
     nb_lecteurs -= 1
@@ -27,13 +27,15 @@ def lecteur():
         lock_ecriture.release()
     mutex.release()
 
-    return value
+    return info
 
-def redacteur(num):
+def redacteur(num, cas):
     mutex2.acquire()
     lock_ecriture.acquire()
 
-    ecriture(connection, num)
+    info=ecriture(connection, num, cas)
 
     lock_ecriture.release()
     mutex2.release()
+
+    return info

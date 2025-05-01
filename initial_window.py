@@ -1,3 +1,4 @@
+import threading
 import tkinter as tk
 from tkinter import ttk
 import cas1, cas2, cas3
@@ -15,32 +16,34 @@ def execute_simulation():
     num = entry_num.get()
     selected_case = case_dropdown.get()
     operation = operation_var.get()
+    def worker():
+        if selected_case == "Case 1: Reader Priority":
+            if operation == "Write":
+                info=cas1.redacteur(num, selected_case) #print info flog
+            else:
+                info = cas1.lecteur(selected_case)
 
-    if selected_case == "Case 1: Reader Priority":
-        print(operation)
-        if operation == "Write":
-            cas1.redacteur(num)
-        else:
-            value = cas1.lecteur()
+        if selected_case == "Case 2: Conditional Reader Priority":
+          
+            if operation == "Write":
+                info = cas2.redacteur(num, selected_case)
+            else:
+                value = cas2.lecteur(selected_case)
 
-    if selected_case == "Case 2: Conditional Reader Priority":
-        print(operation)
-        if operation == "Write":
-            cas2.redacteur(num)
-        else:
-            value = cas2.lecteur()
+        if selected_case == "Case 3: Writer Priority":
+            print(operation)
+            if operation == "Write":
+                info = cas3.redacteur(num, selected_case)
 
-    if selected_case == "Case 3: Writer Priority":
-        print(operation)
-        if operation == "Write":
-            cas3.redacteur(num)
-        else:
-            value = cas3.lecteur()
-    
-    logs.insert(tk.END, f"Number to write: {num if operation == 'Write' else 'N/A'}\n")
-    logs.insert(tk.END, f"Selected Case: {selected_case}\n")
-    logs.insert(tk.END, f"Operation: {operation}\n")
-    logs.insert(tk.END, "Starting simulation...\n")
+            else:
+                value = cas3.lecteur(selected_case)
+        
+        logs.insert(tk.END, f"Number to write: {num if operation == 'Write' else 'N/A'}\n")
+        logs.insert(tk.END, f"Selected Case: {selected_case}\n")
+        logs.insert(tk.END, f"Operation: {operation}\n")
+        logs.insert(tk.END, "Starting simulation...\n")
+        
+    threading.Thread(target=worker).start()
 
 # Main Window
 root = tk.Tk()

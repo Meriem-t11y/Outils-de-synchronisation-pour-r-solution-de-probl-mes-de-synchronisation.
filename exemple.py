@@ -1,308 +1,203 @@
-import sys
+import tkinter as tk
+from tkinter import scrolledtext
 import threading
 import time
 import random
-import sqlite3
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QLabel, QRadioButton, QPushButton, QTextEdit,
-                             QInputDialog, QMessageBox, QTreeWidget,
-                             QTreeWidgetItem, QHBoxLayout)
-from PyQt5.QtCore import Qt, pyqtSignal, QObject
+from datetime import datetime
 
 
-class DatabaseApp(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Gestion Lecteurs/Rédacteurs")
-        self.setup_ui()
-        self.conn = self.connection_setup()
-
-    def connection_setup(self):
-        conn = sqlite3.connect('database.db', check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("CREATE TABLE IF NOT EXISTS data (value INTEGER)")
-        conn.commit()
-        return conn
-
-    def setup_ui(self):
-        # Widget central
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-
-        # Layout principal
-        layout = QVBoxLayout()
-        central_widget.setLayout(layout)
-
-        # Sélection du scénario
-        layout.addWidget(QLabel("Choisissez un scénario:"))
-
-        self.scenario1 = QRadioButton("Priorité absolue aux lecteurs")
-        self.scenario2 = QRadioButton("Priorité aux lecteurs si actif")
-        self.scenario3 = QRadioButton("Priorité aux rédacteurs")
-
-        layout.addWidget(self.scenario1)
-        layout.addWidget(self.scenario2)
-        layout.addWidget(self.scenario3)
+class SimpleUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Lecteur-Rédacteur")
+        self.root.geometry("500x400")
 
         # Boutons
-        self.start_btn = QPushButton("Démarrer la simulation")
-        self.start_btn.clicked.connect(self.start_simulation)
-        layout.addWidget(self.start_btn)
+        self.btn_frame = tk.Frame(root)
+        self.btn_frame.pack(pady=10)
 
-        self.view_data_btn = QPushButton("Voir les données")
-        self.view_data_btn.clicked.connect(self.show_data)
-        layout.addWidget(self.view_data_btn)
+        tk.Button(self.btn_frame, text="Cas 1", command=self.run_case1).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.btn_frame, text="Cas 2", command=self.run_case2).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.btn_frame, text="Cas 3", command=self.run_case3).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.btn_frame, text="Effacer", command=self.clear_output).pack(side=tk.LEFT, padx=5)
 
-        # Console de sortie
-        self.output = QTextEdit()
-        self.output.setReadOnly(True)
-        layout.addWidget(self.output)
+        # Zone de sortie
+        self.output = scrolledtext.ScrolledText(root, height=20)
+        self.output.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # Configuration de la fenêtre
-        self.resize(600, 400)
+        # Flag d'arrêt
+        self.stop_simulation = False
 
     def log(self, message):
-        self.output.append(message)
+        self.output.insert(tk.END, message + "\n")
+        self.output.see(tk.END)
+        self.root.update()
 
-    def lire_donnee(self, id_lecteur):
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT value FROM data ORDER BY ROWID DESC LIMIT 1")
-        result = cursor.fetchone()
-        valeur = result[0] if result else "Aucune donnée"
-        self.log(f"Lecteur {id_lecteur} a lu: {valeur}")
-        return valeur
+    def clear_output(self):
+        self.output.delete(1.0, tk.END)
 
-    def ecrire_donnee(self, id_redacteur):
-        valeur, ok = QInputDialog.getInt(
-            self,
-            f"Rédacteur {id_redacteur}",
-            "Entrez un nombre à écrire:",
-            0, -2147483648, 2147483647, 1
-        )
+    def run_case1(self):
+        self.clear_output()
+        self.stop_simulation = False
+        threading.Thread(target=self._case1, daemon=True).start()
 
-        if ok:
-            cursor = self.conn.cursor()
-            cursor.execute("INSERT INTO data (value) VALUES (?)", (valeur,))
-            self.conn.commit()
-            self.log(f"Rédacteur {id_redacteur} a écrit: {valeur}")
-            return True
-        return False
+    def run_case2(self):
+        self.clear_output()
+        self.stop_simulation = False
+        threading.Thread(target=self._case2, daemon=True).start()
 
-    def start_simulation(self):
-        if not (self.scenario1.isChecked() or
-                self.scenario2.isChecked() or
-                self.scenario3.isChecked()):
-            QMessageBox.warning(self, "Attention", "Veuillez sélectionner un scénario")
-            return
+    def run_case3(self):
+        self.clear_output()
+        self.stop_simulation = False
+        threading.Thread(target=self._case3, daemon=True).start()
 
-        self.output.clear()
-
-        if self.scenario1.isChecked():
-            self.case1()
-        elif self.scenario2.isChecked():
-            self.case2()
-        elif self.scenario3.isChecked():
-            self.case3()
-
-    def case1(self):
-        self.w = threading.Semaphore(1)
-        self.mutex1 = threading.Semaphore(1)
-        self.mutex2 = threading.Semaphore(1)
-        self.nl = 0
+    def _case1(self):
+        w = threading.Semaphore(1)
+        mutex1 = threading.Semaphore(1)
+        mutex2 = threading.Semaphore(1)
+        nl = 0
 
         def lecteur(id):
-            nonlocal self
-            self.log_signal.emit(f"Lecteur {id} veut lire")
-            self.mutex1.acquire()
-            self.nl += 1
-            if self.nl == 1:
-                self.w.acquire()
-            self.mutex1.release()
+            nonlocal nl
+            self.log(f"Lecteur {id} veut lire - {datetime.now()}")
+            mutex1.acquire()
+            nl += 1
+            if nl == 1:
+                w.acquire()
+            mutex1.release()
 
-            self.lire_signal.emit(id)
+            self.log(f"Lecteur {id} lit (nl={nl}) - {datetime.now()}")
             time.sleep(random.uniform(0.5, 1.5))
 
-            self.mutex1.acquire()
-            self.nl -= 1
-            if self.nl == 0:
-                self.w.release()
-            self.mutex1.release()
-            self.log_signal.emit(f"Lecteur {id} a fini de lire")
+            mutex1.acquire()
+            nl -= 1
+            if nl == 0:
+                w.release()
+            mutex1.release()
+            self.log(f"Lecteur {id} a fini de lire - {datetime.now()}")
 
         def redacteur(id):
-            self.log_signal.emit(f"Rédacteur {id} veut écrire")
-            self.mutex2.acquire()
-            self.w.acquire()
-
-            # Utilisation d'un signal pour la boîte de dialogue
-            self.write_signal.emit(id)
+            self.log(f"Rédacteur {id} veut écrire - {datetime.now()}")
+            mutex2.acquire()
+            w.acquire()
+            self.log(f"Rédacteur {id} écrit - {datetime.now()}")
             time.sleep(random.uniform(1, 2))
+            w.release()
+            mutex2.release()
+            self.log(f"Rédacteur {id} a fini d'écrire - {datetime.now()}")
 
-            self.w.release()
-            self.mutex2.release()
-            self.log_signal.emit(f"Rédacteur {id} a fini d'écrire")
+        self._run_simulation(lecteur, redacteur)
 
-        self.run_threads(lecteur, redacteur)
-
-    def case2(self):
-        self.w = threading.Semaphore(1)
-        self.mutex1 = threading.Semaphore(1)
-        self.nl = 0
+    def _case2(self):
+        w = threading.Semaphore(1)
+        mutex1 = threading.Semaphore(1)
+        nl = 0
 
         def lecteur(id):
-            nonlocal self
-            self.log_signal.emit(f"Lecteur {id} veut lire")
-            self.mutex1.acquire()
-            self.nl += 1
-            if self.nl == 1:
-                self.w.acquire()
-            self.mutex1.release()
+            nonlocal nl
+            self.log(f"Lecteur {id} veut lire - {datetime.now()}")
+            mutex1.acquire()
+            nl += 1
+            if nl == 1:
+                w.acquire()
+            mutex1.release()
 
-            self.lire_signal.emit(id)
+            self.log(f"Lecteur {id} lit (nl={nl}) - {datetime.now()}")
             time.sleep(random.uniform(0.5, 1.5))
 
-            self.mutex1.acquire()
-            self.nl -= 1
-            if self.nl == 0:
-                self.w.release()
-            self.mutex1.release()
-            self.log_signal.emit(f"Lecteur {id} a fini de lire")
+            mutex1.acquire()
+            nl -= 1
+            if nl == 0:
+                w.release()
+            mutex1.release()
+            self.log(f"Lecteur {id} a fini de lire - {datetime.now()}")
 
         def redacteur(id):
-            self.log_signal.emit(f"Rédacteur {id} veut écrire")
-            self.w.acquire()
-
-            self.write_signal.emit(id)
+            self.log(f"Rédacteur {id} veut écrire - {datetime.now()}")
+            w.acquire()
+            self.log(f"Rédacteur {id} écrit - {datetime.now()}")
             time.sleep(random.uniform(1, 2))
+            w.release()
+            self.log(f"Rédacteur {id} a fini d'écrire - {datetime.now()}")
 
-            self.w.release()
-            self.log_signal.emit(f"Rédacteur {id} a fini d'écrire")
+        self._run_simulation(lecteur, redacteur)
 
-        self.run_threads(lecteur, redacteur)
-
-    def case3(self):
-        self.w = threading.Semaphore(1)
-        self.r = threading.Semaphore(1)
-        self.mutex1 = threading.Semaphore(1)
-        self.mutex2 = threading.Semaphore(1)
-        self.nl = 0
-        self.nr = 0
+    def _case3(self):
+        w = threading.Semaphore(1)
+        r = threading.Semaphore(1)
+        mutex1 = threading.Semaphore(1)
+        mutex2 = threading.Semaphore(1)
+        nl = 0
+        nr = 0
 
         def lecteur(id):
-            nonlocal self
-            self.log_signal.emit(f"Lecteur {id} veut lire")
-            self.r.acquire()
-            self.mutex1.acquire()
-            self.nl += 1
-            if self.nl == 1:
-                self.w.acquire()
-            self.mutex1.release()
-            self.r.release()
+            nonlocal nl
+            self.log(f"Lecteur {id} veut lire - {datetime.now()}")
+            r.acquire()
+            mutex1.acquire()
+            nl += 1
+            if nl == 1:
+                w.acquire()
+            mutex1.release()
+            r.release()
 
-            self.lire_signal.emit(id)
+            self.log(f"Lecteur {id} lit (nl={nl}) - {datetime.now()}")
             time.sleep(random.uniform(0.5, 1.5))
 
-            self.mutex1.acquire()
-            self.nl -= 1
-            if self.nl == 0:
-                self.w.release()
-            self.mutex1.release()
-            self.log_signal.emit(f"Lecteur {id} a fini de lire")
+            mutex1.acquire()
+            nl -= 1
+            if nl == 0:
+                w.release()
+            mutex1.release()
+            self.log(f"Lecteur {id} a fini de lire - {datetime.now()}")
 
         def redacteur(id):
-            nonlocal self
-            self.log_signal.emit(f"Rédacteur {id} veut écrire")
-            self.mutex2.acquire()
-            self.nr += 1
-            if self.nr == 1:
-                self.r.acquire()
-            self.mutex2.release()
+            nonlocal nr
+            self.log(f"Rédacteur {id} veut écrire - {datetime.now()}")
+            mutex2.acquire()
+            nr += 1
+            if nr == 1:
+                r.acquire()
+            mutex2.release()
 
-            self.w.acquire()
-            self.write_signal.emit(id)
+            w.acquire()
+            self.log(f"Rédacteur {id} écrit - {datetime.now()}")
             time.sleep(random.uniform(1, 2))
-            self.w.release()
+            w.release()
 
-            self.mutex2.acquire()
-            self.nr -= 1
-            if self.nr == 0:
-                self.r.release()
-            self.mutex2.release()
-            self.log_signal.emit(f"Rédacteur {id} a fini d'écrire")
+            mutex2.acquire()
+            nr -= 1
+            if nr == 0:
+                r.release()
+            mutex2.release()
+            self.log(f"Rédacteur {id} a fini d'écrire - {datetime.now()}")
 
-        self.run_threads(lecteur, redacteur)
+        self._run_simulation(lecteur, redacteur)
 
-    def run_threads(self, lecteur_func, redacteur_func):
-        self.threads = []
-        for i in range(3):  # 3 threads pour faciliter les tests
+    def _run_simulation(self, lecteur, redacteur):
+        threads = []
+        for i in range(5):
+            if self.stop_simulation:
+                break
+
             if random.random() < 0.6:
-                t = threading.Thread(target=lecteur_func, args=(i,))
+                threads.append(threading.Thread(target=lecteur, args=(i,)))
             else:
-                t = threading.Thread(target=redacteur_func, args=(i,))
-            self.threads.append(t)
+                threads.append(threading.Thread(target=redacteur, args=(i,)))
+
+        for t in threads:
+            if self.stop_simulation:
+                break
             t.start()
             time.sleep(random.uniform(0.1, 0.5))
 
-    def show_data(self):
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT rowid, value FROM data ORDER BY rowid")
-        data = cursor.fetchall()
-
-        dialog = QTreeWidget()
-        dialog.setWindowTitle("Données enregistrées")
-        dialog.setColumnCount(2)
-        dialog.setHeaderLabels(["ID", "Valeur"])
-
-        for row in data:
-            item = QTreeWidgetItem(dialog)
-            item.setText(0, str(row[0]))
-            item.setText(1, str(row[1]))
-
-        dialog.resize(400, 300)
-        dialog.exec_()
-
-    def closeEvent(self, event):
-        if hasattr(self, 'conn'):
-            self.conn.close()
-        event.accept()
-
-
-class Communicate(QObject):
-    log_signal = pyqtSignal(str)
-    lire_signal = pyqtSignal(int)
-    write_signal = pyqtSignal(int)
+        for t in threads:
+            if self.stop_simulation:
+                break
+            t.join()
 
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    # Création des signaux
-    communicator = Communicate()
-
-    # Création de la fenêtre principale
-    window = DatabaseApp()
-
-    # Connexion des signaux
-    communicator.log_signal.connect(window.log)
-
-
-    def handle_lire(id):
-        window.lire_donnee(id)
-
-
-    communicator.lire_signal.connect(handle_lire)
-
-
-    def handle_write(id):
-        window.ecrire_donnee(id)
-
-
-    communicator.write_signal.connect(handle_write)
-
-    # Attribution des signaux à la fenêtre
-    window.log_signal = communicator.log_signal
-    window.lire_signal = communicator.lire_signal
-    window.write_signal = communicator.write_signal
-
-    window.show()
-    sys.exit(app.exec_())
+    root = tk.Tk()
+    app = SimpleUI(root)
+    root.mainloop()

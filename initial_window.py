@@ -13,9 +13,6 @@ class ReaderWriterApp:
         self.root = root
         self.root.title("Simulateur Lecteurs-Rédacteurs")
         self.root.geometry("800x600")
-
-
-
         # Variables de contrôle
         self.running = False
         self.threads = []
@@ -147,27 +144,20 @@ class ReaderWriterApp:
             time.sleep(random.uniform(0.1, 0.3))  # Délai aléatoire entre threads
 
     def run_reader(self, reader_id):
-        """Exécute une opération de lecture"""
-        if not self.running:
-            return
-
         info = self.case_module.lecteur(f"Reader-{reader_id}")
         self.log_queue.put(
-            f"[{datetime.now().strftime('%H:%M:%S.%f')}] "
-            f"Lecteur {reader_id} a lu: {info[0]['value']}"
+            f"[{info[0]['start_time']}] Début | [{info[0]['end_time']}] Fin | "
+            f"Lecteur {reader_id} a lu: {info[0]['value']} | Lecteurs actifs: {info[0]['total']}"
         )
 
     def run_writer(self, writer_id):
-        """Exécute une opération d'écriture"""
-        if not self.running:
-            return
-
-        value = random.randint(0, 100)  # Valeur aléatoire pour l'écriture
+        value = random.randint(0, 100)
         info = self.case_module.redacteur(value, f"Writer-{writer_id}")
         self.log_queue.put(
-            f"[{datetime.now().strftime('%H:%M:%S.%f')}] "
+            f"[{info[0]['start_time']}] Début | [{info[0]['end_time']}] Fin | "
             f"Rédacteur {writer_id} a écrit: {info[0]['value']}"
         )
+
 
     def stop_simulation(self):
         """Arrête proprement la simulation"""

@@ -1,91 +1,194 @@
-import threading
 import tkinter as tk
-from tkinter import ttk
-import cas1, cas2, cas3
+from tkinter import ttk, messagebox
+import threading
+import queue
+import random
 import time
-
-def toggle_entry_field():
-    """Toggle visibility of the 'Number to write' field."""
-    if operation_var.get() == "Write":
-        entry_num.grid(row=3, column=1, padx=10, pady=5)
-        number_label.grid(row=3, column=0, padx=10, pady=5)
-    else:
-        entry_num.grid_remove()
-        number_label.grid_remove()
+from datetime import datetime
+import cas1, cas2, cas3
 
 
-def execute_simulation():
-    num = entry_num.get()
-    selected_case = case_dropdown.get()
-    operation = operation_var.get()
+class ReaderWriterApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Simulateur Lecteurs-Rédacteurs")
+        self.root.geometry("800x600")
 
-    def worker():
 
-        if selected_case == "Case 1: Reader Priority":
-            if operation == "Write":
-                info = cas1.redacteur(num, selected_case)
+
+        # Variables de contrôle
+        self.running = False
+        self.threads = []
+        self.log_queue = queue.Queue()
+        self.case_module = cas1  # Par défaut
+
+        # Configuration de l'interface
+        self.setup_ui()
+
+        # Démarrer la mise à jour des logs
+        self.update_logs()
+
+    def setup_ui(self):
+        """Configure tous les éléments de l'interface"""
+        # Frame principale
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Sélection du cas
+        case_frame = ttk.LabelFrame(main_frame, text="Stratégie de synchronisation", padding="10")
+        case_frame.pack(fill=tk.X, pady=5)
+
+        self.case_var = tk.StringVar(value="cas1")
+
+        cases = [
+            ("Priorité absolue aux lecteurs", "cas1"),
+            ("Priorité conditionnelle", "cas2"),
+            ("Priorité aux rédacteurs", "cas3")
+        ]
+
+        for text, value in cases:
+            ttk.Radiobutton(
+                case_frame,
+                text=text,
+                variable=self.case_var,
+                value=value
+            ).pack(anchor=tk.W, pady=2)
+
+        # Configuration de la simulation
+        config_frame = ttk.LabelFrame(main_frame, text="Configuration", padding="10")
+        config_frame.pack(fill=tk.X, pady=5)
+
+        ttk.Label(config_frame, text="Nombre d'opérations:").pack(anchor=tk.W)
+        self.op_count = ttk.Entry(config_frame)
+        self.op_count.insert(0, "20")
+        self.op_count.pack(fill=tk.X)
+
+        ttk.Label(config_frame, text="Ratio lecteurs/rédacteurs:").pack(anchor=tk.W)
+        self.ratio = ttk.Scale(config_frame, from_=0, to=100, orient=tk.HORIZONTAL)
+        self.ratio.set(60)  # 60% lecteurs
+        self.ratio.pack(fill=tk.X)
+
+        # Contrôles
+        control_frame = ttk.Frame(main_frame)
+        control_frame.pack(fill=tk.X, pady=10)
+
+        self.start_btn = ttk.Button(
+            control_frame,
+            text="Démarrer la simulation",
+            command=self.start_simulation
+        )
+        self.start_btn.pack(side=tk.LEFT, padx=5)
+
+        self.stop_btn = ttk.Button(
+            control_frame,
+            text="Arrêter",
+            state=tk.DISABLED,
+            command=self.stop_simulation
+        )
+        self.stop_btn.pack(side=tk.LEFT, padx=5)
+
+        # Zone de logs
+        log_frame = ttk.LabelFrame(main_frame, text="Journal des opérations", padding="10")
+        log_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.log_text = tk.Text(log_frame, height=15, state=tk.DISABLED)
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(self.log_text)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.log_text.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.log_text.yview)
+
+    def start_simulation(self):
+        """Démarre la simulation avec les paramètres choisis"""
+        if self.running:
+            return
+
+        self.running = True
+        self.start_btn.config(state=tk.DISABLED)
+        self.stop_btn.config(state=tk.NORMAL)
+
+        # Chargement du module approprié
+        case = self.case_var.get()
+        self.case_module = {
+            "cas1": cas1,
+            "cas2": cas2,
+            "cas3": cas3
+        }.get(case, cas1)
+
+        # Récupération des paramètres
+        try:
+            num_ops = int(self.op_count.get())
+            reader_ratio = self.ratio.get() / 100
+        except ValueError:
+            messagebox.showerror("Erreur", "Valeurs invalides")
+            return
+
+        # Lancement des threads
+        for i in range(num_ops):
+            if not self.running:
+                break
+
+            if random.random() < reader_ratio:
+                t = threading.Thread(
+                    target=self.run_reader,
+                    args=(i,),
+                    daemon=True
+                )
             else:
-                info = cas1.lecteur(selected_case)
+                t = threading.Thread(
+                    target=self.run_writer,
+                    args=(i,),
+                    daemon=True
+                )
 
-        elif selected_case == "Case 2: Conditional Reader Priority":
-            if operation == "Write":
-                info = cas2.redacteur(num, selected_case)
-            else:
-                info = cas2.lecteur(selected_case)
+            self.threads.append(t)
+            t.start()
+            time.sleep(random.uniform(0.1, 0.3))  # Délai aléatoire entre threads
 
-        elif selected_case == "Case 3: Writer Priority":
-            print(operation)
-            if operation == "Write":
-                info = cas3.redacteur(num, selected_case)
-            else:
-                info = cas3.lecteur(selected_case)
+    def run_reader(self, reader_id):
+        """Exécute une opération de lecture"""
+        if not self.running:
+            return
 
-        logs.insert(tk.END, f"\nSimulation...\n  ")
-        logs.insert(tk.END, info[0]["operation"])
-        logs.insert(tk.END, info[0]["value"])
-        
+        info = self.case_module.lecteur(f"Reader-{reader_id}")
+        self.log_queue.put(
+            f"[{datetime.now().strftime('%H:%M:%S.%f')}] "
+            f"Lecteur {reader_id} a lu: {info[0]['value']}"
+        )
 
-    threading.Thread(target=worker).start()
+    def run_writer(self, writer_id):
+        """Exécute une opération d'écriture"""
+        if not self.running:
+            return
+
+        value = random.randint(0, 100)  # Valeur aléatoire pour l'écriture
+        info = self.case_module.redacteur(value, f"Writer-{writer_id}")
+        self.log_queue.put(
+            f"[{datetime.now().strftime('%H:%M:%S.%f')}] "
+            f"Rédacteur {writer_id} a écrit: {info[0]['value']}"
+        )
+
+    def stop_simulation(self):
+        """Arrête proprement la simulation"""
+        self.running = False
+        self.start_btn.config(state=tk.NORMAL)
+        self.stop_btn.config(state=tk.DISABLED)
+        self.log_queue.put("=== Simulation arrêtée ===")
+
+    def update_logs(self):
+        """Met à jour l'affichage des logs"""
+        while not self.log_queue.empty():
+            msg = self.log_queue.get()
+            self.log_text.config(state=tk.NORMAL)
+            self.log_text.insert(tk.END, msg + "\n")
+            self.log_text.see(tk.END)
+            self.log_text.config(state=tk.DISABLED)
+
+        self.root.after(100, self.update_logs)
 
 
-# Main Window
-root = tk.Tk()
-root.title("Readers-Writers Problem Simulation")
-
-# Dropdown to select the case
-tk.Label(root, text="Select Case:").grid(row=0, column=0, padx=10, pady=5)
-selected_value = tk.StringVar()
-selected_value.set("Case 1: Reader Priority")
-case_dropdown = ttk.Combobox(root, textvariable=selected_value,state="readonly",
-                             values=["Case 1: Reader Priority", "Case 2: Conditional Reader Priority",
-                                     "Case 3: Writer Priority"])
-case_dropdown.grid(row=0, column=1, padx=10, pady=5)
-
-# Radio buttons for operation selection
-tk.Label(root, text="Select Operation:").grid(row=1, column=0, padx=10, pady=5)
-operation_var = tk.StringVar(value="Read")
-tk.Radiobutton(root, text="Read from Database", variable=operation_var, value="Read", command=toggle_entry_field).grid(
-    row=1, column=1, sticky="w")
-tk.Radiobutton(root, text="Write to Database", variable=operation_var, value="Write", command=toggle_entry_field).grid(
-    row=2, column=1, sticky="w")
-
-# Label and Entry for number of processes
-number_label = tk.Label(root, text="Enter Number to write:")
-number_label.grid(row=3, column=0, padx=10, pady=5)
-entry_num = tk.Entry(root)
-entry_num.grid(row=3, column=1, padx=10, pady=5)
-
-# Initially hide the field
-toggle_entry_field()
-
-# Execute button
-execute_button = tk.Button(root, text="Execute", command=execute_simulation)
-execute_button.grid(row=4, column=0, columnspan=2, pady=10)
-
-# Logs output
-tk.Label(root, text="Simulation Logs:").grid(row=5, column=0, columnspan=2, pady=5)
-logs = tk.Text(root, height=10, width=50)
-logs.grid(row=6, column=0, columnspan=2, padx=100, pady=50)
-
-# Run the application
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ReaderWriterApp(root)
+    root.mainloop()

@@ -1,51 +1,33 @@
+import sqlite3
 from datetime import datetime
 import inspect
-import sqlite3 
 
 def connection_setup():
-    connection = sqlite3.connect("lecteur_redacteur.db", check_same_thread=False)
-    create_table(connection)
-    return connection
+    conn = sqlite3.connect('database.db', check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS data (value TEXT)")
+    conn.commit()
+    return conn
 
-def create_table(connection):
-    with connection:
-        connection.execute("""
-            CREATE TABLE IF NOT EXISTS `nums` (
-                `number` varchar(255)
-            );""")
-        
-def ecriture(connection, number, cas):
-    with connection:
-        cursor = connection.cursor()
-        cursor.execute("""
-            DELETE FROM nums
-        """)
-        cursor.execute("""
-            INSERT INTO nums (number)
-            VALUES (?)
-        """, (number,))
-
-    info=[{
-        "operation":inspect.currentframe().f_code.co_name,
+def ecriture(conn, number, cas):
+    with conn:
+        conn.execute("DELETE FROM data")
+        conn.execute("INSERT INTO data VALUES (?)", (str(number),))
+    return [{
+        "operation": inspect.currentframe().f_code.co_name,
         "cas": cas,
-        "time": datetime.now(),
+        "time": datetime.now().strftime("%H:%M:%S"),
         "value": number
     }]
 
-    return info
-
-def lecture(connection, cas, total):
-    with connection:
-        cursor = connection.cursor()
-        cursor.execute("SELECT * FROM nums")
-        row = cursor.fetchone()
-        if row:
-            info=[{
-                "operation":inspect.currentframe().f_code.co_name,
-                "cas": cas,
-                "time": datetime.now(),
-                "total": total,
-                "value":  row[0]
+def lecture(conn, cas, total):
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM data")
+    row = cursor.fetchone()
+    return [{
+        "operation": inspect.currentframe().f_code.co_name,
+        "cas": cas,
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "total": total,
+        "value": row[0] if row else "NULL"
     }]
-        return info
-    

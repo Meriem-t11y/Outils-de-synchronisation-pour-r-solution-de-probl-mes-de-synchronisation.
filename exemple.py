@@ -1,175 +1,203 @@
+import tkinter as tk
+from tkinter import scrolledtext
 import threading
 import time
 import random
+from datetime import datetime
 
 
-def case1():
-    w = threading.Semaphore(1)
-    mutex1 = threading.Semaphore(1)
-    mutex2 = threading.Semaphore(1)
-    nl = 0
+class SimpleUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Lecteur-Rédacteur")
+        self.root.geometry("500x400")
 
-    def lecteur(id):
-        nonlocal nl
-        print(f"Lecteur {id} veut lire")
-        mutex1.acquire()
-        nl += 1
-        if nl == 1:
+        # Boutons
+        self.btn_frame = tk.Frame(root)
+        self.btn_frame.pack(pady=10)
+
+        tk.Button(self.btn_frame, text="Cas 1", command=self.run_case1).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.btn_frame, text="Cas 2", command=self.run_case2).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.btn_frame, text="Cas 3", command=self.run_case3).pack(side=tk.LEFT, padx=5)
+        tk.Button(self.btn_frame, text="Effacer", command=self.clear_output).pack(side=tk.LEFT, padx=5)
+
+        # Zone de sortie
+        self.output = scrolledtext.ScrolledText(root, height=20)
+        self.output.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
+        # Flag d'arrêt
+        self.stop_simulation = False
+
+    def log(self, message):
+        self.output.insert(tk.END, message + "\n")
+        self.output.see(tk.END)
+        self.root.update()
+
+    def clear_output(self):
+        self.output.delete(1.0, tk.END)
+
+    def run_case1(self):
+        self.clear_output()
+        self.stop_simulation = False
+        threading.Thread(target=self._case1, daemon=True).start()
+
+    def run_case2(self):
+        self.clear_output()
+        self.stop_simulation = False
+        threading.Thread(target=self._case2, daemon=True).start()
+
+    def run_case3(self):
+        self.clear_output()
+        self.stop_simulation = False
+        threading.Thread(target=self._case3, daemon=True).start()
+
+    def _case1(self):
+        w = threading.Semaphore(1)
+        mutex1 = threading.Semaphore(1)
+        mutex2 = threading.Semaphore(1)
+        nl = 0
+
+        def lecteur(id):
+            nonlocal nl
+            self.log(f"Lecteur {id} veut lire - {datetime.now()}")
+            mutex1.acquire()
+            nl += 1
+            if nl == 1:
+                w.acquire()
+            mutex1.release()
+
+            self.log(f"Lecteur {id} lit (nl={nl}) - {datetime.now()}")
+            time.sleep(random.uniform(0.5, 1.5))
+
+            mutex1.acquire()
+            nl -= 1
+            if nl == 0:
+                w.release()
+            mutex1.release()
+            self.log(f"Lecteur {id} a fini de lire - {datetime.now()}")
+
+        def redacteur(id):
+            self.log(f"Rédacteur {id} veut écrire - {datetime.now()}")
+            mutex2.acquire()
             w.acquire()
-        mutex1.release()
-
-        print(f"Lecteur {id} lit (nl={nl})")
-        time.sleep(random.uniform(0.5, 1.5))
-
-        mutex1.acquire()
-        nl -= 1
-        if nl == 0:
+            self.log(f"Rédacteur {id} écrit - {datetime.now()}")
+            time.sleep(random.uniform(1, 2))
             w.release()
-        mutex1.release()
-        print(f"Lecteur {id} a fini de lire")
+            mutex2.release()
+            self.log(f"Rédacteur {id} a fini d'écrire - {datetime.now()}")
 
-    def redacteur(id):
-        print(f"Rédacteur {id} veut écrire")
-        mutex2.acquire()
-        w.acquire()
-        print(f"Rédacteur {id} écrit")
-        time.sleep(random.uniform(1, 2))
-        w.release()
-        mutex2.release()
-        print(f"Rédacteur {id} a fini d'écrire")
+        self._run_simulation(lecteur, redacteur)
 
-    threads = []
-    for i in range(5):
-        if random.random() < 0.6:
-            threads.append(threading.Thread(target=lecteur, args=(i,)))
-        else:
-            threads.append(threading.Thread(target=redacteur, args=(i,)))
+    def _case2(self):
+        w = threading.Semaphore(1)
+        mutex1 = threading.Semaphore(1)
+        nl = 0
 
-    for t in threads:
-        t.start()
-        time.sleep(random.uniform(0.1, 0.5))
+        def lecteur(id):
+            nonlocal nl
+            self.log(f"Lecteur {id} veut lire - {datetime.now()}")
+            mutex1.acquire()
+            nl += 1
+            if nl == 1:
+                w.acquire()
+            mutex1.release()
 
-    for t in threads:
-        t.join()
+            self.log(f"Lecteur {id} lit (nl={nl}) - {datetime.now()}")
+            time.sleep(random.uniform(0.5, 1.5))
 
+            mutex1.acquire()
+            nl -= 1
+            if nl == 0:
+                w.release()
+            mutex1.release()
+            self.log(f"Lecteur {id} a fini de lire - {datetime.now()}")
 
-# Cas 2: Priorité aux lecteurs seulement si un lecteur est déjà actif
-def case2():
-    w = threading.Semaphore(1)
-    mutex1 = threading.Semaphore(1)
-    nl = 0
-
-    def lecteur(id):
-        nonlocal nl
-        print(f"Lecteur {id} veut lire")
-        mutex1.acquire()
-        nl += 1
-        if nl == 1:
+        def redacteur(id):
+            self.log(f"Rédacteur {id} veut écrire - {datetime.now()}")
             w.acquire()
-        mutex1.release()
-
-        print(f"Lecteur {id} lit (nl={nl})")
-        time.sleep(random.uniform(0.5, 1.5))
-
-        mutex1.acquire()
-        nl -= 1
-        if nl == 0:
+            self.log(f"Rédacteur {id} écrit - {datetime.now()}")
+            time.sleep(random.uniform(1, 2))
             w.release()
-        mutex1.release()
-        print(f"Lecteur {id} a fini de lire")
+            self.log(f"Rédacteur {id} a fini d'écrire - {datetime.now()}")
 
-    def redacteur(id):
-        print(f"Rédacteur {id} veut écrire")
-        w.acquire()
-        print(f"Rédacteur {id} écrit")
-        time.sleep(random.uniform(1, 2))
-        w.release()
-        print(f"Rédacteur {id} a fini d'écrire")
+        self._run_simulation(lecteur, redacteur)
 
-    threads = []
-    for i in range(5):
-        if random.random() < 0.6:
-            threads.append(threading.Thread(target=lecteur, args=(i,)))
-        else:
-            threads.append(threading.Thread(target=redacteur, args=(i,)))
+    def _case3(self):
+        w = threading.Semaphore(1)
+        r = threading.Semaphore(1)
+        mutex1 = threading.Semaphore(1)
+        mutex2 = threading.Semaphore(1)
+        nl = 0
+        nr = 0
 
-    for t in threads:
-        t.start()
-        time.sleep(random.uniform(0.1, 0.5))
-
-    for t in threads:
-        t.join()
-
-
-# Cas 3: Priorité aux rédacteurs
-def case3():
-    w = threading.Semaphore(1)
-    r = threading.Semaphore(1)
-    mutex1 = threading.Semaphore(1)
-    mutex2 = threading.Semaphore(1)
-    nl = 0
-    nr = 0
-
-    def lecteur(id):
-        nonlocal nl
-        print(f"Lecteur {id} veut lire")
-        r.acquire()
-        mutex1.acquire()
-        nl += 1
-        if nl == 1:
-            w.acquire()
-        mutex1.release()
-        r.release()
-
-        print(f"Lecteur {id} lit (nl={nl})")
-        time.sleep(random.uniform(0.5, 1.5))
-
-        mutex1.acquire()
-        nl -= 1
-        if nl == 0:
-            w.release()
-        mutex1.release()
-        print(f"Lecteur {id} a fini de lire")
-
-    def redacteur(id):
-        nonlocal nr
-        print(f"Rédacteur {id} veut écrire")
-        mutex2.acquire()
-        nr += 1
-        if nr == 1:
+        def lecteur(id):
+            nonlocal nl
+            self.log(f"Lecteur {id} veut lire - {datetime.now()}")
             r.acquire()
-        mutex2.release()
-
-        w.acquire()
-        print(f"Rédacteur {id} écrit")
-        time.sleep(random.uniform(1, 2))
-        w.release()
-
-        mutex2.acquire()
-        nr -= 1
-        if nr == 0:
+            mutex1.acquire()
+            nl += 1
+            if nl == 1:
+                w.acquire()
+            mutex1.release()
             r.release()
-        mutex2.release()
-        print(f"Rédacteur {id} a fini d'écrire")
 
-    threads = []
-    for i in range(5):
-        if random.random() < 0.6:
-            threads.append(threading.Thread(target=lecteur, args=(i,)))
-        else:
-            threads.append(threading.Thread(target=redacteur, args=(i,)))
+            self.log(f"Lecteur {id} lit (nl={nl}) - {datetime.now()}")
+            time.sleep(random.uniform(0.5, 1.5))
 
-    for t in threads:
-        t.start()
-        time.sleep(random.uniform(0.1, 0.5))
+            mutex1.acquire()
+            nl -= 1
+            if nl == 0:
+                w.release()
+            mutex1.release()
+            self.log(f"Lecteur {id} a fini de lire - {datetime.now()}")
 
-    for t in threads:
-        t.join()
+        def redacteur(id):
+            nonlocal nr
+            self.log(f"Rédacteur {id} veut écrire - {datetime.now()}")
+            mutex2.acquire()
+            nr += 1
+            if nr == 1:
+                r.acquire()
+            mutex2.release()
+
+            w.acquire()
+            self.log(f"Rédacteur {id} écrit - {datetime.now()}")
+            time.sleep(random.uniform(1, 2))
+            w.release()
+
+            mutex2.acquire()
+            nr -= 1
+            if nr == 0:
+                r.release()
+            mutex2.release()
+            self.log(f"Rédacteur {id} a fini d'écrire - {datetime.now()}")
+
+        self._run_simulation(lecteur, redacteur)
+
+    def _run_simulation(self, lecteur, redacteur):
+        threads = []
+        for i in range(5):
+            if self.stop_simulation:
+                break
+
+            if random.random() < 0.6:
+                threads.append(threading.Thread(target=lecteur, args=(i,)))
+            else:
+                threads.append(threading.Thread(target=redacteur, args=(i,)))
+
+        for t in threads:
+            if self.stop_simulation:
+                break
+            t.start()
+            time.sleep(random.uniform(0.1, 0.5))
+
+        for t in threads:
+            if self.stop_simulation:
+                break
+            t.join()
 
 
-print("Cas 1: Priorité absolue aux lecteurs")
-case1()
-print("\nCas 2: Priorité aux lecteurs seulement si un lecteur est déjà actif")
-case2()
-print("\nCas 3: Priorité aux rédacteurs")
-case3()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = SimpleUI(root)
+    root.mainloop()
